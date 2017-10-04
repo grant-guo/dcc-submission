@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "icgc.dcc.submission.ega.metadata";
+option java_outer_classname = "EGAMetadata";
+
+package icgc.dcc.submission.ega.metadata;
+
+message SampleIDList {
+    repeated string sampleId = 1;
+}
+
+message GetMetadataResponse {
+    map<string, SampleIDList> map = 1;
+}
+
+message GetMetadataRequest {}
+
+service EGAMetadataService {
+    rpc getMetadata(GetMetadataRequest) returns (GetMetadataResponse);
+}
+
