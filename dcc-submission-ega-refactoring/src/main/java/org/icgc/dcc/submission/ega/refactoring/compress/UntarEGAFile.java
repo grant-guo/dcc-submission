@@ -20,5 +20,5 @@ import java.io.File;
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 public interface UntarEGAFile {
-  File untar(File input, File target_dir, String target_file_name);
+  File untar(File input);
 }

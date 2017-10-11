@@ -17,6 +17,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -53,10 +54,13 @@ public class DownloadEGAFileImpl implements DownloadEGAFile{
 
   private ExecutorService executor = Executors.newFixedThreadPool(parallel,new ThreadFactoryBuilder().setNameFormat("download-thread-pool-%d").build());
 
-  private int currentIndexOfFTPClient = 0;
+  private AtomicLong indexForFTPClient = null;
 
   @Override
   public Observable<File> download() {
+
+    indexForFTPClient = new AtomicLong(0);
+
     return
     Observable.defer(() -> {
       return
@@ -121,15 +125,11 @@ public class DownloadEGAFileImpl implements DownloadEGAFile{
     });
   }
 
-  private synchronized FTPClient getFtpClient() {
-    if(currentIndexOfFTPClient == ftpClients.size())
-      currentIndexOfFTPClient = 0;
+  private FTPClient getFtpClient() {
 
-    FTPClient ret = ftpClients.get(currentIndexOfFTPClient);
+    long index = indexForFTPClient.getAndIncrement();
 
-    currentIndexOfFTPClient++;
-
-    return ret;
+    return ftpClients.get((int)(index % sizeOfConnPool));
 
   }
 

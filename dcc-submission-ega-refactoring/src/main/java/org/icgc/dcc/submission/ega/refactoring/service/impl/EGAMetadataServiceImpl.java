@@ -74,14 +74,25 @@ public class EGAMetadataServiceImpl implements EGAMetadataService{
               .observeOn(Schedulers.io())
               .map(zipFile -> untar.untar(zipFile, target_path, zipFile.getName()))
               .map(extractor::extract)
-        ).compose(repo::call).subscribe();
+        )
+        .compose(repo::call).toList()
+        .subscribe(
+            i -> {},
+            error -> log.error("Periodical task failed, " + error.getMessage()),
+            () -> log.info("Successfully finish periodical task!")
+        );
   }
 
 
   @Scheduled(cron = "${ega.metadata.cron.clean}")
   public void cleanHistoryData() {
-    this.repo.cleanHistoryData(
-        LocalDateTime.now(ZoneId.of("America/Toronto")).atZone(ZoneId.of("America/Toronto")).toEpochSecond() - 7 * 24 * 3600
-    ).subscribe();
+    this.repo
+        .cleanHistoryData(LocalDateTime.now(ZoneId.of("America/Toronto")).atZone(ZoneId.of("America/Toronto")).toEpochSecond() - 7 * 24 * 3600)
+        .toList()
+        .subscribe(
+            i -> {},
+            error -> log.error("Cleaning old data failed, " + error.getMessage()),
+            () -> log.info("Successfully clean the old data!")
+        );
   }
 }

@@ -1,6 +1,7 @@
 package org.icgc.dcc.submission.ega.refactoring.compress.impl;
 
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import org.codehaus.plexus.archiver.tar.TarGZipUnArchiver;
 import org.codehaus.plexus.logging.console.ConsoleLoggerManager;
 import org.icgc.dcc.submission.ega.refactoring.compress.UntarEGAFile;
@@ -24,18 +25,21 @@ import java.io.File;
  * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+@RequiredArgsConstructor
 public class UntarEGAFileImpl implements UntarEGAFile{
 
+  @NonNull
+  private File target_dir;
+
   @Override
-  public File untar(File src, File target_dir, String target_file_name) {
+  public File untar(File src) {
     TarGZipUnArchiver archiver = new TarGZipUnArchiver();
     ConsoleLoggerManager manager = new ConsoleLoggerManager();
     manager.initialize();
-    archiver.enableLogging(manager.getLoggerForComponent("RxUntarEGAFile"));
+    archiver.enableLogging(manager.getLoggerForComponent("UntarEGAFileImpl"));
     archiver.setSourceFile(src);
     archiver.setDestDirectory(target_dir);
     archiver.extract();
-    return new File(target_dir, target_file_name);
+    return new File(target_dir, src.getName().substring(0, src.getName().indexOf(".tar.gz")));
   }
 }

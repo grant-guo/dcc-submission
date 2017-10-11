@@ -111,8 +111,8 @@ public class EGAMetadataConfig {
 
   @Bean
   @Scope("singleton")
-  public UntarEGAFile untarEGAFile() {
-    return new UntarEGAFileImpl();
+  public UntarEGAFile untarEGAFile(File target_path) {
+    return new UntarEGAFileImpl(target_path);
   }
 
   @Bean
