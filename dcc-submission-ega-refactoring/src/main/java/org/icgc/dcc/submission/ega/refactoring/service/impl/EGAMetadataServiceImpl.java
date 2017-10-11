@@ -1,6 +1,21 @@
 package org.icgc.dcc.submission.ega.refactoring.service.impl;
 
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
+import org.icgc.dcc.submission.ega.refactoring.compress.UntarEGAFile;
+import org.icgc.dcc.submission.ega.refactoring.download.DownloadEGAFile;
+import org.icgc.dcc.submission.ega.refactoring.extractor.DataExtractor;
+import org.icgc.dcc.submission.ega.refactoring.repo.EGAMetadataRepo;
 import org.icgc.dcc.submission.ega.refactoring.service.EGAMetadataService;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import rx.Observable;
+import rx.schedulers.Schedulers;
+
+import javax.annotation.PostConstruct;
+import java.io.File;
 
 /**
  * Copyright (c) 2017 The Ontario Institute for Cancer Research. All rights reserved.
@@ -19,6 +34,44 @@ import org.icgc.dcc.submission.ega.refactoring.service.EGAMetadataService;
  * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+@Service
+@RequiredArgsConstructor
+@Slf4j
 public class EGAMetadataServiceImpl implements EGAMetadataService{
+
+  @NonNull
+  private DownloadEGAFile downloader;
+
+  @NonNull
+  private UntarEGAFile untar;
+
+  @NonNull
+  private DataExtractor<Pair<String, String>> extractor;
+
+  @NonNull
+  private EGAMetadataRepo repo;
+
+  @NonNull
+  private File target_path;
+
+
+  @PostConstruct
+  public void executeOnBooting() {
+    ( new Thread(() -> {
+      execute();
+    }) ).start();
+
+  }
+
+  @Override
+  @Scheduled(cron = "${ega.metadata.cron.data}")
+  public void execute() {
+    this.downloader.download()
+        .flatMap(file ->
+          Observable.just(file)
+              .observeOn(Schedulers.io())
+              .map(zipFile -> untar.untar(zipFile, target_path, zipFile.getName()))
+              .map(extractor::extract)
+        ).compose(repo::call).subscribe();
+  }
 }

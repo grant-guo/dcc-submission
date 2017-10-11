@@ -1,4 +1,7 @@
-package org.icgc.dcc.submission.ega.refactoring.compress;
+package org.icgc.dcc.submission.ega.refactoring.download;
+
+import it.sauronsoftware.ftp4j.FTPClient;
+import rx.Observable;
 
 import java.io.File;
 
@@ -19,6 +22,6 @@ import java.io.File;
  * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-public interface UntarEGAFile {
-  File untar(File input, File target_dir, String target_file_name);
+public interface DownloadEGAFile {
+  Observable<File> download();
 }

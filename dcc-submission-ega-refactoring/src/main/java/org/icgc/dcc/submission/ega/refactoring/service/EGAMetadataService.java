@@ -18,4 +18,5 @@ package org.icgc.dcc.submission.ega.refactoring.service;
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 public interface EGAMetadataService {
+  void execute();
 }

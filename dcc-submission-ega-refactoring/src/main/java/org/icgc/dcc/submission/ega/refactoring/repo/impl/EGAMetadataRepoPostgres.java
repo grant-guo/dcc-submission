@@ -1,5 +1,6 @@
 package org.icgc.dcc.submission.ega.refactoring.repo.impl;
 
+import com.github.davidmoten.rx.jdbc.Database;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +10,10 @@ import org.icgc.dcc.submission.ega.refactoring.repo.EGAMetadataRepo;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import rx.Observable;
+import rx.Scheduler;
+import rx.schedulers.Schedulers;
+
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -37,84 +42,81 @@ import java.util.List;
 public class EGAMetadataRepoPostgres implements EGAMetadataRepo {
 
   @NonNull
-  private EGAMetadataConfig.EGAMetadataPostgresqlConfig config;
+  private Database database;
 
   @NonNull
-  private DriverManagerDataSource dataSource;
+  private String viewName;
 
   private String table_name_prefix = "ega_sample_mapping_";
 
   private String sql_create_table =
-      "CREATE TABLE IF NOT EXISTS ega.{table_name} ( " +
+      "CREATE TABLE IF NOT EXISTS ? ( " +
       "sample_id varchar(64), " +
       "file_id varchar(64) " +
-//      "PRIMARY KEY(sample_id, file_id) " +
       ");";
 
-  private String sql_create_view = "CREATE OR REPLACE VIEW ega.{view_name} AS SELECT * from ega.{table_name}";
+  private String sql_create_view = "CREATE OR REPLACE VIEW ? AS SELECT * from ?";
 
   private String sql_batch_insert = "INSERT INTO ega.{table_name} VALUES(?, ?)";
 
-  /**
-   * every time the persis(...) function is triggered, create a new data table with a timestamp postfix on the table name
-   * then update the view to point to the new table
-   * any queries will be against the view instead of the tables
-   *
-   * @param data list of (sample_id, file_id) tuple
-   */
-  @Override
-  public void persist(List<Pair<String, String>> data) {
+  private String sql_get_all_data_table = "select table_name from information_schema.tables where table_schema = 'ega' and table_name like 'ega_sample_mapping_%';";
 
-    System.out.println("Writing database from " + Thread.currentThread().getName());
+  private String bad_data_table_name = "ega.bad_ega_sample_metadata";
 
-    String table_name = table_name_prefix + LocalDateTime.now(ZoneId.of("America/Toronto")).atZone(ZoneId.of("America/Toronto")).toEpochSecond();
-    log.info("Writing data to table: " + table_name);
+  private String sql_clean_bad_sample_data_table = "DELETE FROM ega." + bad_data_table_name + " where timestamp < ?;";
 
-    JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
-
-    jdbcTemplate.update(sql_create_table.replaceAll("\\{table_name\\}", table_name));
-
-    String sql = sql_batch_insert.replaceAll("\\{table_name\\}", table_name);
-
-    jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
-      @Override
-      public void setValues(PreparedStatement preparedStatement, int i) throws SQLException {
-        Pair<String, String> pair = data.get(i);
-        preparedStatement.setString(1, pair.getKey());
-        preparedStatement.setString(2, pair.getValue());
-      }
-
-      @Override
-      public int getBatchSize() {
-        return data.size();
-      }
-    });
-
-    jdbcTemplate.execute(sql_create_view.replaceAll("\\{view_name\\}", config.getViewName()).replaceAll("\\{table_name\\}", table_name));
-
-    log.info("Finish writing data to table: " + table_name);
+  private String getTablename() {
+    return "ega." + table_name_prefix + LocalDateTime.now(ZoneId.of("America/Toronto")).atZone(ZoneId.of("America/Toronto")).toEpochSecond();
   }
 
-//  @Override
-//  public void cleanHistoryData(long timestamp) {
-//    JdbcTemplate jdbcTemplate = new JdbcTemplate(
-//        new DriverManagerDataSource("jdbc:postgresql://" + config.getHost() + "/" + config.getDatabase() + "?user=" + config.getUser() + "&password=" + config.getPassword())
-//    );
-//
-//    String sql = "select table_name from information_schema.tables where table_schema = 'ega' and table_name like 'ega_sample_mapping_%';";
-//    jdbcTemplate.query(sql, new RowCallbackHandler() {
-//      @Override
-//      public void processRow(ResultSet resultSet) throws SQLException {
-//        while(resultSet.next()){
-//          String table_name = resultSet.getString(1);
-//          long time = Long.parseLong( table_name.substring(table_name.lastIndexOf("_") + 1) );
-//          if(time < timestamp)
-//            jdbcTemplate.execute("DROP TABLE ega." + table_name);
-//        }
-//      }
-//    });
-//
-//  }
+  @Override
+  public Observable<Integer> call(Observable<List<Pair<String, String>>> data) {
+
+    String table_name = this.getTablename();
+
+    return
+      Observable.concat(
+          database.update(this.sql_create_table).parameter(table_name).count(),
+
+          data.flatMap(list ->
+              Observable.from(list)
+                  .observeOn(Schedulers.io())
+                  .flatMap(pair ->
+                      database.update(sql_batch_insert)
+                          .parameters("ega." + table_name, pair.getKey(), pair.getValue())
+                          .count()
+                  )
+          ),
+
+          database.update(this.sql_create_view).parameters("ega." + viewName, table_name).count()
+      ).doOnCompleted(() -> {
+        log.info("Finish writing data to table: " + table_name);
+      });
+
+  }
+
+  @Override
+  public Observable<Integer> cleanHistoryData(long timestamp) {
+
+    return
+      Observable.concat(
+
+        database.update("DROP TABLE ?")
+            .parameters(
+                database.select(this.sql_get_all_data_table)
+                    .getAs(String.class)
+                    .filter(name -> {
+                      long time = Long.parseLong( name.substring(name.lastIndexOf("_") + 1) );
+                      return time < timestamp;
+                    })
+                    .map(name -> "ega." + name)
+            ).count(),
+
+        database.update(this.sql_clean_bad_sample_data_table).parameter(timestamp).count()
+
+      );
+
+  }
 
 
 }

@@ -68,10 +68,13 @@ public class EGAMetadataConfig {
 
   @Bean
   @Scope("singleton")
-  public DriverManagerDataSource driverManagerDataSource(EGAMetadataPostgresqlConfig config) {
+  public DriverManagerDataSource driverManagerDataSource(@Value("postgresql") String url) {
     return
-        new DriverManagerDataSource(
-            "jdbc:postgresql://" + config.getHost() + "/" + config.getDatabase() + "?user=" + config.getUser() + "&password=" + config.getPassword()
-        );
+        new DriverManagerDataSource(url);
+  }
+
+  @Bean(name = "postgresql")
+  public String postgresqlUrl(EGAMetadataPostgresqlConfig config) {
+    return "jdbc:postgresql://" + config.getHost() + "/" + config.getDatabase() + "?user=" + config.getUser() + "&password=" + config.getPassword();
   }
 }

@@ -3,25 +3,22 @@ package org.icgc.dcc.submission.ega.metadata.test;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.Pair;
 import org.icgc.dcc.submission.ega.refactoring.compress.UntarEGAFile;
+import org.icgc.dcc.submission.ega.refactoring.compress.impl.UntarEGAFileImpl;
 import org.icgc.dcc.submission.ega.refactoring.conf.EGAMetadataConfig;
-import org.icgc.dcc.submission.ega.refactoring.download.StartDownloading;
+import org.icgc.dcc.submission.ega.refactoring.download.impl.DownloadEGAFileImpl;
 import org.icgc.dcc.submission.ega.refactoring.extractor.BadFormattedDataLogger;
 import org.icgc.dcc.submission.ega.refactoring.extractor.DataExtractor;
 import org.icgc.dcc.submission.ega.refactoring.extractor.impl.EGAPostgresqlBadFormattedDataLogger;
 import org.icgc.dcc.submission.ega.refactoring.extractor.impl.EGASampleFileExtractor;
-import org.icgc.dcc.submission.ega.refactoring.repo.EGAMetadataRepo;
-import org.icgc.dcc.submission.ega.refactoring.repo.impl.EGAMetadataRepoPostgres;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import rx.Observable;
 import rx.schedulers.Schedulers;
 
-import java.io.IOException;
-import java.util.List;
+import java.io.File;
+import java.util.Observable;
 import java.util.Properties;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+
 
 /**
  * Copyright (c) 2017 The Ontario Institute for Cancer Research. All rights reserved.
@@ -41,7 +38,7 @@ import java.util.concurrent.Executors;
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-public class StartDownloadingTest {
+public class DownloadEGAFileTest {
 
   private static EGAMetadataConfig.EGAMetadataFTPConfig ftpConfig;
   private static EGAMetadataConfig.EGAMetadataPostgresqlConfig postgresqlConfig;
@@ -50,12 +47,18 @@ public class StartDownloadingTest {
 
   private static Properties properties;
 
+  private static String postgresqlUrl;
+
+  private static File target_path = new File("/Users/gguo/work/data/tmp");
+
+  private static BadFormattedDataLogger badDataLogger;
+
   @BeforeClass
   @SneakyThrows
   public static void initialize() {
 
     properties = new Properties();
-    properties.load(StartDownloadingTest.class.getResourceAsStream("application.properties"));
+    properties.load(DownloadEGAFileTest.class.getResourceAsStream("/application.properties"));
 
     ftpConfig = new EGAMetadataConfig.EGAMetadataFTPConfig();
     ftpConfig.setHost("ftp-private.ebi.ac.uk");
@@ -70,36 +73,34 @@ public class StartDownloadingTest {
     postgresqlConfig.setDatabase("ICGC_metadata");
     postgresqlConfig.setViewName("view_ega_sample_mapping");
 
-    driverManagerDataSource = new DriverManagerDataSource(
-        "jdbc:postgresql://" + postgresqlConfig.getHost() + "/" + postgresqlConfig.getDatabase() + "?user=" + postgresqlConfig.getUser() + "&password=" + postgresqlConfig.getPassword()
-    );
+    postgresqlUrl = "jdbc:postgresql://" + postgresqlConfig.getHost() + "/" + postgresqlConfig.getDatabase() + "?user=" + postgresqlConfig.getUser() + "&password=" + postgresqlConfig.getPassword();
 
+    driverManagerDataSource = new DriverManagerDataSource(postgresqlUrl);
+
+    badDataLogger = new EGAPostgresqlBadFormattedDataLogger(driverManagerDataSource);
   }
 
   @Test
-  public void testDownloading() {
+  public void download_test() {
 
-    String dir = "/Users/gguo/work/data/tmp";
+    UntarEGAFile untar = new UntarEGAFileImpl();
+    DataExtractor<Pair<String, String>> extractor = new EGASampleFileExtractor();
 
-    BadFormattedDataLogger logger = new EGAPostgresqlBadFormattedDataLogger(driverManagerDataSource);
+    (new DownloadEGAFileImpl(ftpConfig, target_path))
+        .download()
+        .flatMap(file ->
+          rx.Observable.just(file).observeOn(Schedulers.io()).map(zipFile -> untar.untar(zipFile, target_path, zipFile.getName())).map(extractor::extract)
+        )
+        .subscribe(data_in_one_file -> {
 
-    DataExtractor<Pair<String, String>> extractor = new EGASampleFileExtractor(logger);
-
-    EGAMetadataRepo repo = new EGAMetadataRepoPostgres(postgresqlConfig, driverManagerDataSource);
-
-    ExecutorService executor = Executors.newFixedThreadPool(10);
-
-    Observable
-        .unsafeCreate(new StartDownloading(ftpConfig, dir))
-        .compose(new UntarEGAFile(dir))
-        .map(extractor::extract)
-        .subscribeOn(Schedulers.from(executor))
-        .subscribe(repo::persist);
+        });
 
     try {
       Thread.sleep(600000L);
     } catch (InterruptedException e) {
       e.printStackTrace();
     }
+
   }
+
 }

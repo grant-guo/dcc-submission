@@ -22,9 +22,8 @@ import java.util.List;
  * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-public interface EGAMetadataRepo {
+public interface EGAMetadataRepo extends Observable.Transformer<List<Pair<String, String>>, Integer>{
 
-  void persist(List<Pair<String, String>> data);
+  Observable<Integer> cleanHistoryData(long timstamp); // remove all of the data before "timestamp"
 
-//  void cleanHistoryData(long timstamp); // remove all of the data before "timestamp"
 }
