@@ -16,6 +16,8 @@ import rx.schedulers.Schedulers;
 
 import javax.annotation.PostConstruct;
 import java.io.File;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * Copyright (c) 2017 The Ontario Institute for Cancer Research. All rights reserved.
@@ -73,5 +75,13 @@ public class EGAMetadataServiceImpl implements EGAMetadataService{
               .map(zipFile -> untar.untar(zipFile, target_path, zipFile.getName()))
               .map(extractor::extract)
         ).compose(repo::call).subscribe();
+  }
+
+
+  @Scheduled(cron = "${ega.metadata.cron.clean}")
+  public void cleanHistoryData() {
+    this.repo.cleanHistoryData(
+        LocalDateTime.now(ZoneId.of("America/Toronto")).atZone(ZoneId.of("America/Toronto")).toEpochSecond() - 7 * 24 * 3600
+    ).subscribe();
   }
 }

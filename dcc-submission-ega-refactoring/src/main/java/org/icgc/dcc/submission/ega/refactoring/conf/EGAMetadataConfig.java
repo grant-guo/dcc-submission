@@ -1,12 +1,29 @@
 package org.icgc.dcc.submission.ega.refactoring.conf;
 
+import com.github.davidmoten.rx.jdbc.Database;
 import lombok.Data;
+import org.apache.commons.lang3.tuple.Pair;
+import org.icgc.dcc.submission.ega.refactoring.compress.UntarEGAFile;
+import org.icgc.dcc.submission.ega.refactoring.compress.impl.UntarEGAFileImpl;
+import org.icgc.dcc.submission.ega.refactoring.download.DownloadEGAFile;
+import org.icgc.dcc.submission.ega.refactoring.download.impl.DownloadEGAFileImpl;
+import org.icgc.dcc.submission.ega.refactoring.extractor.BadFormattedDataLogger;
+import org.icgc.dcc.submission.ega.refactoring.extractor.DataExtractor;
+import org.icgc.dcc.submission.ega.refactoring.extractor.impl.EGAPostgresqlBadFormattedDataLogger;
+import org.icgc.dcc.submission.ega.refactoring.extractor.impl.EGASampleFileExtractor;
+import org.icgc.dcc.submission.ega.refactoring.repo.EGAMetadataRepo;
+import org.icgc.dcc.submission.ega.refactoring.repo.impl.EGAMetadataRepoPostgres;
+import org.icgc.dcc.submission.ega.refactoring.service.EGAMetadataService;
+import org.icgc.dcc.submission.ega.refactoring.service.impl.EGAMetadataServiceImpl;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+import java.io.File;
 
 /**
  * Copyright (c) 2017 The Ontario Institute for Cancer Research. All rights reserved.
@@ -68,13 +85,63 @@ public class EGAMetadataConfig {
 
   @Bean
   @Scope("singleton")
-  public DriverManagerDataSource driverManagerDataSource(@Value("postgresql") String url) {
+  public DriverManagerDataSource driverManagerDataSource(@Qualifier("postgresqlUrl") String url) {
     return
         new DriverManagerDataSource(url);
   }
 
-  @Bean(name = "postgresql")
+  @Bean
+  @Scope("singleton")
   public String postgresqlUrl(EGAMetadataPostgresqlConfig config) {
     return "jdbc:postgresql://" + config.getHost() + "/" + config.getDatabase() + "?user=" + config.getUser() + "&password=" + config.getPassword();
+  }
+
+  @Bean
+  @Scope("singleton")
+  public File tmpDataDir(){
+    String systemDir = System.getProperty("java.io.tmpdir");
+    return new File( (systemDir.endsWith("/")?systemDir.substring(0, systemDir.length()-1):systemDir) + "/ega/metadata" );
+  }
+
+  @Bean
+  @Scope("singleton")
+  public DownloadEGAFile downloadEGAFile(EGAMetadataFTPConfig ftpConfig, File tmp_data_dir) {
+    return new DownloadEGAFileImpl(ftpConfig, tmp_data_dir);
+  }
+
+  @Bean
+  @Scope("singleton")
+  public UntarEGAFile untarEGAFile() {
+    return new UntarEGAFileImpl();
+  }
+
+  @Bean
+  @Scope("singleton")
+  public Database rxjava_jdbc_database(String postgresqlUrl) {
+    return Database.from(postgresqlUrl).asynchronous();
+  }
+
+  @Bean
+  @Scope("singleton")
+  public BadFormattedDataLogger badFormattedDataLogger(Database database) {
+    return new EGAPostgresqlBadFormattedDataLogger(database);
+  }
+
+  @Bean
+  @Scope("singleton")
+  public DataExtractor<Pair<String, String>> dataExtractor() {
+    return new EGASampleFileExtractor();
+  }
+
+  @Bean
+  @Scope("singleton")
+  public EGAMetadataRepo egaMetadataRepo(Database database, EGAMetadataPostgresqlConfig config) {
+    return new EGAMetadataRepoPostgres(database, config.getViewName());
+  }
+
+  @Bean
+  @Scope("singleton")
+  public EGAMetadataService egaMetadataService(DownloadEGAFile downloader, UntarEGAFile untar, DataExtractor<Pair<String, String>> extractor, EGAMetadataRepo repo, File target_path) {
+    return new EGAMetadataServiceImpl(downloader, untar, extractor, repo, target_path);
   }
 }

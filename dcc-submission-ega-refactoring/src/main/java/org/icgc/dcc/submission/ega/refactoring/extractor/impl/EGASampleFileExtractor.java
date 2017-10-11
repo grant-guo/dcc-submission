@@ -74,7 +74,7 @@ public class EGASampleFileExtractor implements DataExtractor<Pair<String, String
         }
       }
       if(!badData.isEmpty()){
-        badFormattedDataLogger.log(badData);
+        badFormattedDataLogger.log(badData).subscribe();
       }
       return buffer;
 

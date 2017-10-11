@@ -1,5 +1,6 @@
 package org.icgc.dcc.submission.ega.metadata.test;
 
+import com.github.davidmoten.rx.jdbc.Database;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.Pair;
 import org.icgc.dcc.submission.ega.refactoring.compress.UntarEGAFile;
@@ -13,10 +14,10 @@ import org.icgc.dcc.submission.ega.refactoring.extractor.impl.EGASampleFileExtra
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import rx.Observable;
 import rx.schedulers.Schedulers;
 
 import java.io.File;
-import java.util.Observable;
 import java.util.Properties;
 
 
@@ -51,6 +52,8 @@ public class DownloadEGAFileTest {
 
   private static File target_path = new File("/Users/gguo/work/data/tmp");
 
+  private static Database database;
+
   private static BadFormattedDataLogger badDataLogger;
 
   @BeforeClass
@@ -77,7 +80,9 @@ public class DownloadEGAFileTest {
 
     driverManagerDataSource = new DriverManagerDataSource(postgresqlUrl);
 
-    badDataLogger = new EGAPostgresqlBadFormattedDataLogger(driverManagerDataSource);
+    database = Database.from(postgresqlUrl);
+
+    badDataLogger = new EGAPostgresqlBadFormattedDataLogger(database);
   }
 
   @Test
@@ -101,6 +106,11 @@ public class DownloadEGAFileTest {
       e.printStackTrace();
     }
 
+  }
+
+  @Test
+  public void extract_test() {
+    String content = "SA320820\tEGAN00001576819\tc3153125-1018-425d-a66b-d8dcdf39de89/analysis.c3153125-1018-425d-a66b-d8dcdf39de89.GNOS.xml.gz.cip\tEGAF00001722718\ttumor_4182393_RNA";
   }
 
 }

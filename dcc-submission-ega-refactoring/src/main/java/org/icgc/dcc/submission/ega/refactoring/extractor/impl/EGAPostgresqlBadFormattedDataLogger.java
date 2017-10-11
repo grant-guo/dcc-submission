@@ -1,5 +1,6 @@
 package org.icgc.dcc.submission.ega.refactoring.extractor.impl;
 
+import com.github.davidmoten.rx.jdbc.Database;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -7,6 +8,7 @@ import org.icgc.dcc.submission.ega.refactoring.extractor.BadFormattedDataLogger;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import rx.Observable;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -35,7 +37,7 @@ import java.util.List;
 public class EGAPostgresqlBadFormattedDataLogger implements BadFormattedDataLogger{
 
   @NonNull
-  private DriverManagerDataSource dataSource;
+  private Database database;
 
   private String bad_data_table_name = "bad_ega_sample_metadata";
 
@@ -48,24 +50,14 @@ public class EGAPostgresqlBadFormattedDataLogger implements BadFormattedDataLogg
   private String sql_batch_insert = "INSERT INTO ega." + bad_data_table_name + " VALUES (?, ?, ?, ?);";
 
   @Override
-  public void log(List<BadFormattedData> data) {
-    JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
-    jdbcTemplate.update(sql_create_table);
+  public Observable<Integer> log(List<BadFormattedData> data) {
 
-    jdbcTemplate.batchUpdate(sql_batch_insert, new BatchPreparedStatementSetter() {
-      @Override
-      public void setValues(PreparedStatement preparedStatement, int i) throws SQLException {
-        BadFormattedData badData = data.get(i);
-        preparedStatement.setLong(1, badData.timestamp);
-        preparedStatement.setString(2, badData.fileName);
-        preparedStatement.setInt(3, badData.lineNo);
-        preparedStatement.setString(4, badData.lineContent);
-      }
-
-      @Override
-      public int getBatchSize() {
-        return data.size();
-      }
-    });
+    return
+      Observable.concat(
+          database.update(sql_create_table).count(),
+          Observable.from(data).flatMap(bad ->
+            database.update(this.sql_batch_insert).parameters(bad.timestamp, bad.fileName, bad.lineNo, bad.lineContent).count()
+          )
+      );
   }
 }

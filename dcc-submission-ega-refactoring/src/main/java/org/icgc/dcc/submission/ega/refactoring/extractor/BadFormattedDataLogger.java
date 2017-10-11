@@ -2,6 +2,7 @@ package org.icgc.dcc.submission.ega.refactoring.extractor;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import rx.Observable;
 
 import java.util.List;
 
@@ -24,7 +25,7 @@ import java.util.List;
  */
 public interface BadFormattedDataLogger {
 
-  void log(List<BadFormattedData> data);
+  Observable<Integer> log(List<BadFormattedData> data);
 
   @RequiredArgsConstructor
   class BadFormattedData {

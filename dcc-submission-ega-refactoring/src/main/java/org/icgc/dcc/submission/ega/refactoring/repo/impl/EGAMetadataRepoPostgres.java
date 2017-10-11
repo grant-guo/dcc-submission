@@ -78,9 +78,8 @@ public class EGAMetadataRepoPostgres implements EGAMetadataRepo {
       Observable.concat(
           database.update(this.sql_create_table).parameter(table_name).count(),
 
-          data.flatMap(list ->
+          data.observeOn(Schedulers.io()).flatMap(list ->
               Observable.from(list)
-                  .observeOn(Schedulers.io())
                   .flatMap(pair ->
                       database.update(sql_batch_insert)
                           .parameters("ega." + table_name, pair.getKey(), pair.getValue())
