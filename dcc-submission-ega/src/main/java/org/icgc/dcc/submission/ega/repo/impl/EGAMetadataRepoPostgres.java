@@ -53,7 +53,7 @@ public class EGAMetadataRepoPostgres implements EGAMetadataRepo {
 
   private String sql_create_view = "CREATE OR REPLACE VIEW ega." + viewName + " AS SELECT * from ${table_name};";
 
-  private String sql_batch_insert = "INSERT INTO ${table_name} VALUES(?, ?);";
+  private String sql_batch_insert = "INSERT INTO ${table_name} VALUES(:1, :2);";
 
   private String sql_get_all_data_table = "select table_name from information_schema.tables where table_schema = 'ega' and table_name like 'ega_sample_mapping_%';";
 
