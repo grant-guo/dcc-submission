@@ -11,7 +11,10 @@ import rx.schedulers.Schedulers;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Copyright (c) 2017 The Ontario Institute for Cancer Research. All rights reserved.
@@ -77,14 +80,21 @@ public class EGAMetadataRepoPostgres implements EGAMetadataRepo {
               this.replaceTablename(this.sql_create_table, table_name)
           ).count(),
 
-          data.observeOn(Schedulers.io()).flatMap(list ->
-              Observable.from(list)
-                  .flatMap(pair ->
-                      database.update(this.replaceTablename(sql_batch_insert, table_name))
-                          .parameters(pair.getKey(), pair.getValue())
-                          .count()
-                  )
-          ),
+          Observable.zip(data.count(), data, (count, list) -> {
+            return
+              database.update(this.replaceTablename(sql_batch_insert, table_name))
+                  .batchSize(count)
+                  .parameters(
+                      Observable.from(
+                          list.stream().map(pair -> {
+                            Map<String, String> map = new HashMap<>();
+                            map.put(":1", pair.getKey());
+                            map.put(":2", pair.getValue());
+                            return map;
+                          }).collect(Collectors.toList())
+                      )
+                  ).count();
+          }).flatMap(i -> i),
 
           database.update(this.sql_create_view).count()
       ).doOnCompleted(() -> {
