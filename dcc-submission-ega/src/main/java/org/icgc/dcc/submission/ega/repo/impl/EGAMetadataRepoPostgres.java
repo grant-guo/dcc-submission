@@ -82,18 +82,20 @@ public class EGAMetadataRepoPostgres implements EGAMetadataRepo {
 
           Observable.zip(data.count(), data, (count, list) -> {
             return
-              database.update(this.replaceTablename(sql_batch_insert, table_name))
-                  .batchSize(count)
-                  .parameters(
-                      Observable.from(
-                          list.stream().map(pair -> {
-                            Map<String, String> map = new HashMap<>();
-                            map.put(":1", pair.getKey());
-                            map.put(":2", pair.getValue());
-                            return map;
-                          }).collect(Collectors.toList())
-                      )
-                  ).count();
+                database.commit(
+                    database.update(this.replaceTablename(sql_batch_insert, table_name)).dependsOn(database.beginTransaction())
+                        .batchSize(count)
+                        .parameters(
+                            Observable.from(
+                                list.stream().map(pair -> {
+                                  Map<String, String> map = new HashMap<>();
+                                  map.put(":1", pair.getKey());
+                                  map.put(":2", pair.getValue());
+                                  return map;
+                                }).collect(Collectors.toList())
+                            )
+                        ).count()
+                ).flatMap(bool -> bool?Observable.just(1):Observable.error(new Exception("database commit failed!")));
           }).flatMap(i -> i),
 
           database.update(this.sql_create_view).count()

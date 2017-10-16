@@ -107,7 +107,7 @@ public class EGAMetadataServiceImplTest {
     service.execute();
 
     try {
-      Thread.sleep(300000L);
+      Thread.sleep(600000L);
     } catch (InterruptedException e) {
       e.printStackTrace();
     }
