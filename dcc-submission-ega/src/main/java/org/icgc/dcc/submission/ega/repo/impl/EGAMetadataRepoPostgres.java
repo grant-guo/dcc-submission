@@ -51,9 +51,9 @@ public class EGAMetadataRepoPostgres implements EGAMetadataRepo {
       "file_id varchar(64) " +
       ");";
 
-  private String sql_create_view = "CREATE OR REPLACE VIEW ega." + viewName + " AS SELECT * from ${table_name};";
+  private String sql_create_view = "CREATE OR REPLACE VIEW ega.${view_name} AS SELECT * from ${table_name};";
 
-  private String sql_batch_insert = "INSERT INTO ${table_name} VALUES(:1, :2);";
+  private String sql_batch_insert = "INSERT INTO ${table_name} VALUES(:sample_id, :file_id);";
 
   private String sql_get_all_data_table = "select table_name from information_schema.tables where table_schema = 'ega' and table_name like 'ega_sample_mapping_%';";
 
@@ -64,6 +64,8 @@ public class EGAMetadataRepoPostgres implements EGAMetadataRepo {
   private String replaceTablename(String sql, String table_name) {
     return sql.replace("${table_name}", table_name);
   }
+
+  private String replaceViewname(String sql, String viewName) {return sql.replace("${view_name}", viewName);}
 
   private String getTablename() {
     return "ega." + table_name_prefix + LocalDateTime.now(ZoneId.of("America/Toronto")).atZone(ZoneId.of("America/Toronto")).toEpochSecond();
@@ -89,8 +91,8 @@ public class EGAMetadataRepoPostgres implements EGAMetadataRepo {
                             Observable.from(
                                 list.stream().map(pair -> {
                                   Map<String, String> map = new HashMap<>();
-                                  map.put(":1", pair.getKey());
-                                  map.put(":2", pair.getValue());
+                                  map.put("sample_id", pair.getKey());
+                                  map.put("file_id", pair.getValue());
                                   return map;
                                 }).collect(Collectors.toList())
                             )
@@ -98,7 +100,7 @@ public class EGAMetadataRepoPostgres implements EGAMetadataRepo {
                 ).flatMap(bool -> bool?Observable.just(1):Observable.error(new Exception("database commit failed!")));
           }).flatMap(i -> i),
 
-          database.update(this.sql_create_view).count()
+          database.update(this.replaceViewname(this.replaceTablename(this.sql_create_view, table_name), viewName)).count()
       ).doOnCompleted(() -> {
         log.info("Finish writing data to table: " + table_name);
       });

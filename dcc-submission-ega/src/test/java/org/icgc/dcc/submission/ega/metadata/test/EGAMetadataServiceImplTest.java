@@ -19,10 +19,13 @@ import org.icgc.dcc.submission.ega.service.EGAMetadataService;
 import org.icgc.dcc.submission.ega.service.impl.EGAMetadataServiceImpl;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import rx.Observable;
+import rx.schedulers.Schedulers;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 /**
  * Copyright (c) 2017 The Ontario Institute for Cancer Research. All rights reserved.
@@ -111,6 +114,21 @@ public class EGAMetadataServiceImplTest {
     } catch (InterruptedException e) {
       e.printStackTrace();
     }
+  }
+
+  @Test
+  @SneakyThrows
+  public void run_download() {
+
+    this.downloader.download()
+        .flatMap(file ->
+            Observable.just(file).observeOn(Schedulers.io())
+                .map(zipFile -> untar.untar(zipFile))
+                .map(extractor::extract)
+        ).map(list -> list.size()).toList().map(list -> list.stream().collect(Collectors.reducing( (a, b) -> a + b ))).subscribe(i -> System.out.println("size of resultset is " + i.get()));
+
+    Thread.sleep(600000L);
+
   }
 
 }

@@ -40,6 +40,8 @@ public class UntarEGAFileImpl implements UntarEGAFile{
     archiver.setSourceFile(src);
     archiver.setDestDirectory(target_dir);
     archiver.extract();
-    return new File(target_dir, src.getName().substring(0, src.getName().indexOf(".tar.gz")));
+    File untar = new File(target_dir, src.getName().substring(0, src.getName().indexOf(".tar.gz")));
+    src.delete();
+    return untar;
   }
 }
